@@ -1,0 +1,133 @@
+# Render Blueprint for all four projects. Each service deploys independently.
+# Secrets marked `sync: false` are prompted for in the Render dashboard on first apply.
+# Service names decide the URLs (https://<name>.onrender.com). If a name is taken,
+# rename it here and update the matching CORS / rewrite destination below.
+
+services:
+  # ---------- Inventory (API only) ----------
+  - type: web
+    name: neerus-inventory-api
+    runtime: python
+    rootDir: Inventory-Management-System-main/backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.8
+      - key: MONGODB_URI
+        sync: false
+      - key: WRITE_API_KEY
+        sync: false
+      - key: DATABASE_NAME
+        value: neerus
+      - key: COLLECTION_NAME
+        value: inventory
+      - key: LOW_STOCK_THRESHOLD
+        value: "20"
+      - key: LOW_STOCK_THRESHOLD_PER_STORE
+        value: "3"
+      - key: FRONTEND_ORIGIN
+        value: https://your-frontend.example.com # set to the real frontend URL
+
+  # ---------- Helpdesk tickets (API + frontend) ----------
+  - type: web
+    name: helpdesk-tickets-api
+    runtime: python
+    rootDir: helpdesk-tickets/backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.8
+      - key: MONGODB_URI
+        sync: false
+      - key: API_KEY
+        sync: false
+      - key: DATABASE_NAME
+        value: neerus
+      - key: COLLECTION_NAME
+        value: tickets
+      - key: DEPARTMENTS_COLLECTION
+        value: departments
+      - key: CORS_ORIGINS
+        value: https://helpdesk-tickets-web.onrender.com
+
+  - type: web
+    name: helpdesk-tickets-web
+    runtime: static
+    rootDir: helpdesk-tickets/frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    routes:
+      # The frontend calls relative /api/..., so proxy it to the backend.
+      - type: rewrite
+        source: /api/*
+        destination: https://helpdesk-tickets-api.onrender.com/api/*
+      - type: rewrite
+        source: /*
+        destination: /index.html
+
+  # ---------- Products & suppliers (API only) ----------
+  - type: web
+    name: products-suppliers-api
+    runtime: python
+    rootDir: products-suppliers-management/backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.8
+      - key: MONGODB_URI
+        sync: false
+      - key: API_KEY
+        sync: false
+      - key: DATABASE_NAME
+        value: neerus
+      - key: PRODUCTS_COLLECTION
+        value: inventory
+      - key: SUPPLIERS_COLLECTION
+        value: suppliers
+      - key: PURCHASE_ORDERS_COLLECTION
+        value: orders
+      - key: LOW_STOCK_THRESHOLD
+        value: "10"
+      - key: CORS_ORIGINS
+        value: https://your-frontend.example.com # set to the real frontend URL
+
+  # ---------- Sales (API + frontend) ----------
+  - type: web
+    name: sales-api
+    runtime: python
+    rootDir: sales-data-feature-sales-system/backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.8
+      - key: MONGODB_URI
+        sync: false
+      - key: API_KEY
+        sync: false
+      - key: DATABASE_NAME
+        value: neerus
+      - key: COLLECTION_NAME
+        value: sales
+      - key: CORS_ORIGINS
+        value: https://sales-web.onrender.com
+
+  - type: web
+    name: sales-web
+    runtime: static
+    rootDir: sales-data-feature-sales-system/frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    routes:
+      - type: rewrite
+        source: /api/*
+        destination: https://sales-api.onrender.com/api/*
+      - type: rewrite
+        source: /*
+        destination: /index.html
